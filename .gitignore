@@ -1,8 +1,0 @@
-.env
-__pycache__/
-*.pyc
-*.pyo
-.chromadb/
-chroma_db/
-*.db
-.DS_Store
