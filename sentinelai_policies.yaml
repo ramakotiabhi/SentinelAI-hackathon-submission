@@ -1,0 +1,141 @@
+version: "1.0"
+name: "SentinelAI Policy Engine"
+
+# First-match-wins logic
+rules:
+
+  # ── CRITICAL: Exfiltration patterns ──
+  - id: block_external_email
+    description: "Block any attempt to send data to external email addresses"
+    match:
+      patterns:
+        - "send.*to.*@(?!company\\.com|internal\\.com)"
+        - "email.*external"
+        - "forward.*gmail|yahoo|hotmail|outlook\\.com"
+    action: DENY
+    risk_score: 0.98
+    log: true
+    alert: true
+    category: EXFILTRATION
+    pack: SOC2
+
+  - id: block_credential_leak
+    description: "Block requests attempting to expose credentials, tokens, or secrets"
+    match:
+      patterns:
+        - "api.?key|secret.?key|password|token|bearer|auth.?header"
+        - "show.*credentials|print.*secret|expose.*key"
+        - "env.*variable.*secret|os\\.environ"
+    action: QUARANTINE
+    risk_score: 0.97
+    log: true
+    alert: true
+    category: CREDENTIAL_LEAK
+    pack: SOC2
+
+  - id: block_pii_exfiltration
+    description: "Block bulk PII export — HIPAA critical"
+    match:
+      patterns:
+        - "all.*patient|export.*ssn|dump.*medical"
+        - "list.*social.?security|bulk.*health.?record"
+        - "download.*employee.*data|extract.*personal"
+    action: DENY
+    risk_score: 0.99
+    log: true
+    alert: true
+    category: PII_EXFILTRATION
+    pack: HIPAA
+
+  - id: detect_prompt_injection
+    description: "Detect prompt injection attempts via documents or user input"
+    match:
+      patterns:
+        - "ignore.*previous.*instruction|forget.*system.*prompt"
+        - "you are now|new persona|act as|disregard.*rules"
+        - "\\[INST\\]|<\\|system\\|>|###.*instruction"
+        - "jailbreak|DAN mode|developer mode"
+    action: DENY
+    risk_score: 0.95
+    log: true
+    alert: true
+    category: PROMPT_INJECTION
+    pack: SOC2
+
+  - id: block_mass_data_access
+    description: "Flag bulk data access — requires human review"
+    match:
+      patterns:
+        - "all.*records|every.*employee|entire.*database"
+        - "export.*all|download.*everything|fetch.*complete"
+    action: HUMAN_REVIEW
+    risk_score: 0.80
+    log: true
+    alert: false
+    category: MASS_DATA_ACCESS
+    pack: SOC2
+
+  # ── Finance pack ──
+  - id: block_unauthorized_transfer
+    description: "Block financial transfer instructions without approval chain"
+    match:
+      patterns:
+        - "transfer.*\\$|wire.*funds|send.*payment"
+        - "move.*account|initiate.*transaction"
+    action: HUMAN_REVIEW
+    risk_score: 0.90
+    log: true
+    alert: true
+    category: FINANCIAL_RISK
+    pack: FINANCE
+
+  - id: block_trading_instructions
+    description: "Block autonomous trading or investment decisions"
+    match:
+      patterns:
+        - "buy.*shares|sell.*stock|execute.*trade"
+        - "place.*order.*market|short.*position"
+    action: DENY
+    risk_score: 0.93
+    log: true
+    alert: true
+    category: FINANCIAL_RISK
+    pack: FINANCE
+
+  # ── HIPAA pack ──
+  - id: hipaa_phi_protection
+    description: "HIPAA PHI — never transmit patient identifiers"
+    match:
+      patterns:
+        - "patient.*name.*dob|diagnosis.*ssn"
+        - "medical.*record.*number|health.*insurance.*id"
+    action: DENY
+    risk_score: 0.99
+    log: true
+    alert: true
+    category: HIPAA_PHI
+    pack: HIPAA
+
+  # ── Rate limiting ──
+  - id: rate_limit_bulk
+    description: "Rate limit unusually high-frequency requests"
+    match:
+      frequency_per_minute: 30
+    action: RATE_LIMIT
+    risk_score: 0.60
+    log: true
+    alert: false
+    category: ABUSE
+    pack: SOC2
+
+  # ── Default allow with logging ──
+  - id: default_allow
+    description: "Allow all other requests with standard logging"
+    match:
+      patterns: [".*"]
+    action: ALLOW
+    risk_score: 0.05
+    log: true
+    alert: false
+    category: BENIGN
+    pack: DEFAULT
